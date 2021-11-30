@@ -1,7 +1,7 @@
 import os
 import wandb
 from copy import deepcopy
-from src.systems import sensor_systems
+from src.systems import ecg_systems
 from src.utils.utils import load_json
 from src.utils.setup import process_config
 import random
@@ -11,10 +11,10 @@ import numpy
 import pytorch_lightning as pl
 
 SYSTEM = {
-    'PretrainViewmakerSystem': sensor_systems.PretrainViewMakerSystem,
-    'TransferViewmakerSystem': sensor_systems.TransferViewMakerSystem,
-    'PretrainExpertSimCLRSystem': sensor_systems.PretrainExpertSimCLRSystem,
-    'TransferExpertSystem': sensor_systems.TransferExpertSystem,
+    'PretrainViewMakerSystem': ecg_systems.PretrainViewMakerSystem,
+    'TransferViewMakerSystem': ecg_systems.TransferViewMakerSystem,
+    'PretrainExpertSimCLRSystem': ecg_systems.PretrainExpertSimCLRSystem,
+    'TransferExpertSystem': ecg_systems.TransferExpertSystem,
 }
 
 
@@ -55,7 +55,7 @@ def run(args, gpu_device=None):
         save_top_k=-1,
         period=1,
     )
-    wandb.init(project='sensor', entity='viewmaker-ecg',
+    wandb.init(project='ecg', entity='viewmaker-ecg',
                name=config.exp_name, config=config, sync_tensorboard=True)
 
     trainer = pl.Trainer(

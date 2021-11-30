@@ -168,6 +168,8 @@ class BasePAMAP2(data.Dataset):
                 print(f'Saving {subj_path_cache}')
                 df.to_pickle(subj_path_cache)
             subject_data.append(df)
+        print(len(subject_data))
+        print(subject_data[0].shape)
         return subject_data
     
     def __getitem__(self, index):
@@ -175,14 +177,16 @@ class BasePAMAP2(data.Dataset):
             subject_id = np.random.randint(len(self.subject_data))
             activity_id = np.random.randint(len(ACTIVITY_LABELS))
             df = self.subject_data[subject_id]
+#             print("df shape", df.shape)
             activity_data = df[df['activity_id'] == ACTIVITY_LABELS[activity_id]].to_numpy()
             if len(activity_data) > self.measurements_per_example: break
         start_idx = np.random.randint(len(activity_data) - self.measurements_per_example)
 
         # Get frame and also truncate off label and timestamp.
         # [self.measurements_per_example, 52]
+#         print("activity data shape", activity_data.shape)
         measurements = activity_data[start_idx: start_idx + self.measurements_per_example, 2:]
-
+#         print("measurements shape", measurements.shape) #(1000, 52)
         # Yields spectrograms of shape [52, 32, 32]
         spectrogram_transform=Spectrogram(n_fft=64-1, hop_length=32, power=2)
         spectrogram = spectrogram_transform(torch.tensor(measurements.T))

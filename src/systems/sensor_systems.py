@@ -138,6 +138,9 @@ class PretrainExpertInstDiscSystem(pl.LightningModule):
         neighbor_idxs = neighbor_idxs.squeeze(1)
         
         neighbor_labels = self.memory_bank_labels.at_idxs(neighbor_idxs).squeeze(-1)
+        print("neighbor labels type", type(neighbor_labels))
+        print("neighbor_labels shape", neighbor_labels.shape)
+        print("neighbor labels", neighbor_labels)
         num_correct = torch.sum(neighbor_labels.cpu() == labels.cpu()).item()
 
         return num_correct, embs.size(0)
