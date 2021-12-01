@@ -346,6 +346,9 @@ class PretrainViewMakerSystem(PretrainExpertSimCLRSystem):
 
     def validation_step(self, batch, batch_idx):
         _, inputs1, inputs2, labels = batch
+        print("labels type", type(labels))
+        print("labels shape", labels.shape)
+        print("labels", labels)
         outputs = self.model(inputs1)
         num_correct, batch_size = self.get_nearest_neighbor_label(outputs, labels)
         output = OrderedDict({

@@ -37,7 +37,7 @@ class PTB_XL(data.Dataset):
     NUM_CLASSES = 5  # NOTE: They're not contiguous labels.
     NUM_CHANNELS = 12 # Multiple sensor readings from different parts of the body
     FILTER_SIZE = 32
-    MULTI_LABEL = False
+    MULTI_LABEL = True
 
     def __init__(
         self,
@@ -134,7 +134,7 @@ class BasePTB_XL(data.Dataset):
 
         # load and convert annotation data
         print("load and convert annotation data")
-        Y = pd.read_csv(root_path+'ptbxl_database.csv', index_col='ecg_id')
+        Y = pd.read_csv(root_path+'ptbxl_database_small.csv', index_col='ecg_id')
         Y.scp_codes = Y.scp_codes.apply(lambda x: ast.literal_eval(x))
 
         # Load raw signal data
@@ -176,7 +176,8 @@ class BasePTB_XL(data.Dataset):
             if len(self.subject_data[1][ecgid]) > 0: break
                 
 #         print("example diagnosis id", self.subject_data[1][ecgid])
-        diagnosis_id = DIAGNOSTIC_SUPERCLASS.index(self.subject_data[1][ecgid][0])
+        diagnosis_id = [1 if x in self.subject_data[1][ecgid] else 0 for x in DIAGNOSTIC_SUPERCLASS]
+#       DIAGNOSTIC_SUPERCLASS.index(self.subject_data[1][ecgid][0])
         measurements = self.subject_data[0][ecgid]
 
         # Yields spectrograms of shape [52, 32, 32]
@@ -186,7 +187,7 @@ class BasePTB_XL(data.Dataset):
         if self.normalize:
             spectrogram = (spectrogram - FEATURE_MEANS.reshape(-1, 1, 1)) / FEATURE_STDS.reshape(-1, 1, 1)
 #         print("spectrogram shape", spectrogram.shape)
-        return spectrogram, diagnosis_id
+        return spectrogram, np.array(diagnosis_id, dtype=np.float32)
 
 
     def __len__(self):

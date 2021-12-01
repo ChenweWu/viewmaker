@@ -5,6 +5,7 @@ Contains PL Systems for SimCLR and Viewmaker methods (pretraining and linear eva
 """
 
 import os
+import numpy as np
 import math
 from dotmap import DotMap
 from collections import OrderedDict
@@ -44,8 +45,8 @@ class PretrainExpertInstDiscSystem(pl.LightningModule):
         self.train_dataset, self.val_dataset = self.create_datasets()
         self.model = self.create_encoder()
         self.memory_bank = MemoryBank(len(self.train_dataset), 
-                                      self.config.model_params.out_dim) 
-        self.memory_bank_labels = MemoryBank(len(self.train_dataset), 1, dtype=int)
+                                      self.config.model_params.out_dim)
+        self.memory_bank_labels = MemoryBank(len(self.train_dataset), 5)
 
     def create_datasets(self):
         print('Initializing validation dataset.')
@@ -133,11 +134,17 @@ class PretrainExpertInstDiscSystem(pl.LightningModule):
         training dataset using the memory bank. Assume its label as
         the predicted label.
         """
+#         print("memory bank labels", self.memory_bank_labels)
         all_dps = self.memory_bank.get_all_dot_products(embs)
         _, neighbor_idxs = torch.topk(all_dps, k=1, sorted=False, dim=1)
         neighbor_idxs = neighbor_idxs.squeeze(1)
         
         neighbor_labels = self.memory_bank_labels.at_idxs(neighbor_idxs).squeeze(-1)
+#         print("labels type", type(labels))
+#         print("labels shape", labels.shape)
+#         print("labels", labels)
+#         print("neighbor labels shape", neighbor_labels.shape)
+#         print("neighbor labels", neighbor_labels)
         num_correct = torch.sum(neighbor_labels.cpu() == labels.cpu()).item()
 
         return num_correct, embs.size(0)
