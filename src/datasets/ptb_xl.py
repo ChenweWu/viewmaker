@@ -123,6 +123,73 @@ class BasePTB_XL(data.Dataset):
 #         nums = self.get_subject_ids(mode)
 #         return [f'subject10{num}.dat' for num in nums]  # like 'subject101.dat'
 
+#     def load_data(self, root_path):
+#         def load_raw_data(df, sampling_rate, path):
+#             if sampling_rate == 100:
+#                 data = [wfdb.rdsamp(path+f) for f in df.filename_lr]
+#             else:
+#                 data = [wfdb.rdsamp(path+f) for f in df.filename_hr]
+#             data = np.array([signal for signal, meta in data])
+#             return data
+
+#         sampling_rate=100
+
+#         # load and convert annotation data
+#         print("load and convert annotation data")
+#         Y = pd.read_csv(root_path+'ptbxl_database_small.csv', index_col='ecg_id')
+#         Y.scp_codes = Y.scp_codes.apply(lambda x: ast.literal_eval(x))
+
+#         # Load raw signal data
+#         print("Load raw signal data")
+#         X = load_raw_data(Y, sampling_rate, root_path)
+
+#         # Load scp_statements.csv for diagnostic aggregation
+#         print("Load scp_statements.csv for diagnostic aggregation")
+#         agg_df = pd.read_csv(root_path+'scp_statements.csv', index_col=0)
+#         agg_df = agg_df[agg_df.diagnostic == 1]
+
+#         def aggregate_diagnostic(y_dic):
+#             tmp = []
+#             for key in y_dic.keys():
+#                 if key in agg_df.index:
+#                     tmp.append(agg_df.loc[key].diagnostic_class)
+#             return list(set(tmp))
+
+#         # Apply diagnostic superclass
+#         Y['diagnostic_superclass'] = Y.scp_codes.apply(aggregate_diagnostic)
+
+#         # Split data into train and test
+#         test_fold = 10
+#         # Train
+#         X_train = X[np.where(Y.strat_fold != test_fold)]
+# #         print("X train shape:", X_train.shape)
+#         y_train = Y[(Y.strat_fold != test_fold)].diagnostic_superclass
+# #         print("y data", y_train)
+#         y_train = y_train.to_numpy()
+# #         print("y train test", y_train[0][0])
+# #         print("y train shape:", y_train.shape)
+# #         print()
+#         subject_data=[X_train,y_train]
+#         return subject_data
+    
+#     def __getitem__(self, index):
+#         while True:
+#             ecgid = np.random.randint(len(self.subject_data[0]))
+#             if len(self.subject_data[1][ecgid]) > 0: break
+                
+# #         print("example diagnosis id", self.subject_data[1][ecgid])
+#         diagnosis_id = DIAGNOSTIC_SUPERCLASS.index(self.subject_data[1][ecgid][0])
+#         measurements = self.subject_data[0][ecgid]
+
+#         # Yields spectrograms of shape [52, 32, 32]
+#         spectrogram_transform=Spectrogram(n_fft=64-1, hop_length=32, power=2)
+#         spectrogram = spectrogram_transform(torch.tensor(measurements.T))
+#         spectrogram = (spectrogram + 1e-6).log()
+#         if self.normalize:
+#             spectrogram = (spectrogram - FEATURE_MEANS.reshape(-1, 1, 1)) / FEATURE_STDS.reshape(-1, 1, 1)
+# #         print("spectrogram shape", spectrogram.shape)
+#         return spectrogram, diagnosis_id
+
     def load_data(self, root_path):
         def load_raw_data(df, sampling_rate, path):
             if sampling_rate == 100:
@@ -136,7 +203,7 @@ class BasePTB_XL(data.Dataset):
 
         # load and convert annotation data
         print("load and convert annotation data")
-        Y = pd.read_csv(root_path+'ptbxl_database_small.csv', index_col='ecg_id')
+        Y = pd.read_csv(root_path+'ptbxl_database.csv', index_col='ecg_id')
         Y.scp_codes = Y.scp_codes.apply(lambda x: ast.literal_eval(x))
 
         # Load raw signal data
@@ -153,32 +220,40 @@ class BasePTB_XL(data.Dataset):
             for key in y_dic.keys():
                 if key in agg_df.index:
                     tmp.append(agg_df.loc[key].diagnostic_class)
-            return list(set(tmp))
-
-        # Apply diagnostic superclass
-        Y['diagnostic_superclass'] = Y.scp_codes.apply(aggregate_diagnostic)
+            conf=list(y_dic.values())
+            inds = []
+            seen = set()
+            for i, ele in enumerate(tmp):
+                if ele not in seen:
+                    inds.append((i))
+                seen.add(ele)
+            tmp1=[tmp[i] for i in inds]
+            conf1=[conf[i] for i in inds]
+            return  tmp1,conf1
+        Y['diagnostic_superclass'], Y['diagnostic_confidence'] = zip(*Y.scp_codes.apply(aggregate_diagnostic))
 
         # Split data into train and test
         test_fold = 10
         # Train
         X_train = X[np.where(Y.strat_fold != test_fold)]
-#         print("X train shape:", X_train.shape)
+        #         print("X train shape:", X_train.shape)
         y_train = Y[(Y.strat_fold != test_fold)].diagnostic_superclass
-#         print("y data", y_train)
+        #         print("y data", y_train)
+        y_conf= Y[(Y.strat_fold != test_fold)].diagnostic_confidence.to_numpy()
         y_train = y_train.to_numpy()
-#         print("y train test", y_train[0][0])
-#         print("y train shape:", y_train.shape)
-#         print()
-        subject_data=[X_train,y_train]
-        return subject_data
-    
+        #         print("y train test", y_train[0][0])
+        #         print("y train shape:", y_train.shape)
+        #         print()
+        return subject_data=[X_train,y_train,y_conf]
     def __getitem__(self, index):
         while True:
             ecgid = np.random.randint(len(self.subject_data[0]))
             if len(self.subject_data[1][ecgid]) > 0: break
                 
 #         print("example diagnosis id", self.subject_data[1][ecgid])
-        diagnosis_id = DIAGNOSTIC_SUPERCLASS.index(self.subject_data[1][ecgid][0])
+        
+        max_conf=np.argmax(self.subject_data[2][ecgid])
+        diagnosis_id = DIAGNOSTIC_SUPERCLASS.index(self.subject_data[1][ecgid][max_conf])
         measurements = self.subject_data[0][ecgid]
 
         # Yields spectrograms of shape [52, 32, 32]
@@ -190,7 +265,7 @@ class BasePTB_XL(data.Dataset):
 #         print("spectrogram shape", spectrogram.shape)
         return spectrogram, diagnosis_id
 
-
+    
     def __len__(self):
         return self.examples_per_epoch
 
