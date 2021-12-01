@@ -168,8 +168,8 @@ class BasePAMAP2(data.Dataset):
                 print(f'Saving {subj_path_cache}')
                 df.to_pickle(subj_path_cache)
             subject_data.append(df)
-#         print(len(subject_data))
-#         print(subject_data[0].shape)
+        print(len(subject_data))
+        print(subject_data[0].shape)
         return subject_data
     
     def __getitem__(self, index):

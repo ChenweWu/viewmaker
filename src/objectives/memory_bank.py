@@ -82,23 +82,6 @@ class MemoryBank(torch.nn.Module):
 
     def update(self, indices, data_memory):
         # in lieu of scatter-update operation
-#         print("indices", indices)
-#         print("indices type", indices.dtype)
-        data_dim = list(data_memory.shape)[1:]
-#         print("data_memory size", data_memory.size())
-#         print("data dim", data_dim)
-#         print("indices", indices)
-#         print("indices shape", indices.shape)
-#         print("indices unsqueezed shape", indices.unsqueeze(1).shape)
-#         print("indices unsqueezed repeat shape", indices.unsqueeze(1).repeat(1, *data_dim).shape)
-#         print("indices AFTER", indices.unsqueeze(1).repeat(1, *data_dim))
-#         print("data memory type", data_memory.dtype)
-#         print("data memory", data_memory)
-#         print("data memory shape", data_memory.shape)
-#         print("self bank shape", self._bank.shape)
-#         print("indices unsqueezed shape", indices.unsqueeze(1).shape)
-        data_dim = list(data_memory.shape)[1:]
-#         print("compare", indices.unsqueeze(1).repeat(1, *data_dim).shape, data_memory.detach().shape)
-        
-        self._bank = self._bank.scatter(0, indices.unsqueeze(1).repeat(1, *data_dim),
+        data_dim = data_memory.size(1)
+        self._bank = self._bank.scatter(0, indices.unsqueeze(1).repeat(1, data_dim),
                                         data_memory.detach())
