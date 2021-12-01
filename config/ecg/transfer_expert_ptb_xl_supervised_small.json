@@ -7,7 +7,8 @@
     "seed": 1337,
     "data_loader_workers": 8,
     "data_params": {
-        "train_small": true
+        "train_small": true,
+        "sensor_transforms": "just_time"
     },
     "pretrain_model": {
         "exp_dir": null,

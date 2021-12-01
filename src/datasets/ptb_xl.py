@@ -60,6 +60,8 @@ class PTB_XL(data.Dataset):
                 spectral_transforms = SpectrumAugmentation()
             elif self.sensor_transforms == 'spectral_noise':
                 spectral_transforms = SpectrumAugmentation(noise=True)
+            elif self.sensor_transforms == 'just_time':
+                spectral_transforms = SpectrumAugmentation(just_time=True)
             else:
                 raise ValueError(f'Transforms {self.sensor_transforms} not implemented.')
 
@@ -134,7 +136,7 @@ class BasePTB_XL(data.Dataset):
 
         # load and convert annotation data
         print("load and convert annotation data")
-        Y = pd.read_csv(root_path+'ptbxl_database.csv', index_col='ecg_id')
+        Y = pd.read_csv(root_path+'ptbxl_database_small.csv', index_col='ecg_id')
         Y.scp_codes = Y.scp_codes.apply(lambda x: ast.literal_eval(x))
 
         # Load raw signal data
@@ -195,8 +197,9 @@ class BasePTB_XL(data.Dataset):
 
 class SpectrumAugmentation(object):
 
-    def __init__(self, noise=False):
+    def __init__(self, just_time=False, noise=False):
         super().__init__()
+        self.just_time = just_time
         self.noise = noise
 
     def get_random_freq_mask(self):
@@ -206,7 +209,10 @@ class SpectrumAugmentation(object):
         return nas.TimeMaskingAug(mask_factor=20)
 
     def __call__(self, data):
-        transforms = naf.Sequential([self.get_random_freq_mask(),
+        if self.just_time:
+            transforms = naf.Sequential([self.get_random_time_mask()])
+        else: 
+            transforms = naf.Sequential([self.get_random_freq_mask(),
                                      self.get_random_time_mask()])
         data = transforms.augment(data)
         if self.noise:
