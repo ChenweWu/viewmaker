@@ -7,7 +7,7 @@
     "seed": 1337,
     "data_loader_workers": 8,
     "pretrain_model": {
-        "exp_dir": null,
+        "exp_dir": "experiments/experiments/pretrain_viewmaker_ptb_xl_simclr",
         "checkpoint_name": "epoch=199.ckpt"
     },
     "optim_params": {

@@ -174,7 +174,7 @@ class PretrainExpertSimCLRSystem(PretrainExpertInstDiscSystem):
 
     def create_datasets(self):
         print('Initializing validation dataset.')
-        val_dataset = PAMAP2(
+        val_dataset = PTB_XL(
             mode='val',
             examples_per_epoch=self.config.data_params.val_examples_per_epoch or 50000,
             sensor_transforms=None,
@@ -182,7 +182,7 @@ class PretrainExpertSimCLRSystem(PretrainExpertInstDiscSystem):
 
         if not self.config.quick:
             print('Initializing train dataset.')
-            train_dataset = PAMAP2(
+            train_dataset = PTB_XL(
                 mode='train',
                 examples_per_epoch=self.config.data_params.train_examples_per_epoch or 10000,
                 sensor_transforms=self.config.data_params.sensor_transforms

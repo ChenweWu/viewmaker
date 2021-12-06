@@ -12,7 +12,7 @@ import pytorch_lightning as pl
 
 SYSTEM = {
     'PretrainViewMakerSystem': sensor_systems.PretrainViewMakerSystem,
-    'TransferViewMakerSystem': sensor_systems.TransferViewMakerSystem,
+    'TransferViewmakerSystem': sensor_systems.TransferViewMakerSystem,
     'PretrainExpertSimCLRSystem': sensor_systems.PretrainExpertSimCLRSystem,
     'TransferExpertSystem': sensor_systems.TransferExpertSystem,
 }

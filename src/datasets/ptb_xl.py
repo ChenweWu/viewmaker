@@ -244,7 +244,9 @@ class BasePTB_XL(data.Dataset):
         #         print("y train test", y_train[0][0])
         #         print("y train shape:", y_train.shape)
         #         print()
-        return subject_data=[X_train,y_train,y_conf]
+        subject_data=[X_train,y_train,y_conf]
+        return subject_data
+    
     def __getitem__(self, index):
         while True:
             ecgid = np.random.randint(len(self.subject_data[0]))
