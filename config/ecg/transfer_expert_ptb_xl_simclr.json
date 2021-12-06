@@ -10,7 +10,7 @@
         "sensor_transforms": "just_time"
     },
     "pretrain_model": {
-        "exp_dir": "experiments/experiments/pretrain_expert_ptb_xl_simclr.json",
+        "exp_dir": "experiments/experiments/pretrain_expert_ptb_xl_simclr",
         "checkpoint_name": "epoch=199.ckpt"
     },
     "optim_params": {

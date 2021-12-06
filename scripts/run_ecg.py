@@ -12,7 +12,7 @@ import pytorch_lightning as pl
 
 SYSTEM = {
     'PretrainViewMakerSystem': ecg_systems.PretrainViewMakerSystem,
-    'TransferViewMakerSystem': ecg_systems.TransferViewMakerSystem,
+    'TransferViewmakerSystem': ecg_systems.TransferViewMakerSystem,
     'PretrainExpertSimCLRSystem': ecg_systems.PretrainExpertSimCLRSystem,
     'TransferExpertSystem': ecg_systems.TransferExpertSystem,
 }
@@ -49,15 +49,17 @@ def run(args, gpu_device=None):
     seed_everything(config.seed)
     SystemClass = SYSTEM[config.system]
     system = SystemClass(config)
-
+    print("setup system")
     ckpt_callback = pl.callbacks.ModelCheckpoint(
         os.path.join(config.exp_dir, 'checkpoints'),
         save_top_k=-1,
         period=1,
     )
+    print("Got ckpt callback")
+    
     wandb.init(project='ecg', entity='viewmaker-ecg',
                name=config.exp_name, config=config, sync_tensorboard=True)
-
+    print("initialized wandb")
     trainer = pl.Trainer(
         default_root_dir=config.exp_dir,
         gpus=gpu_device,
