@@ -283,7 +283,7 @@ class SpectrumAugmentation(object):
         return nas.FrequencyMaskingAug(mask_factor=20)
 
     def get_random_time_mask(self):
-        return nas.TimeMaskingAug(mask_factor=20)
+        return nas.TimeMaskingAug(coverage=0.7)
 
     def __call__(self, data):
         if self.just_time:
