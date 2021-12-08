@@ -30,6 +30,8 @@ from src.models import viewmaker
 import pytorch_lightning as pl
 import wandb
 
+import sklearn
+
 
 class PretrainExpertInstDiscSystem(pl.LightningModule):
     '''Pretraining with Instance Discrimination
@@ -492,14 +494,18 @@ class TransferViewMakerSystem(pl.LightningModule):
         logits = self.forward(inputs, train=train)
         preds = torch.argmax(F.log_softmax(logits, dim=1), dim=1)
         preds = preds.long().cpu()
-        num_correct = torch.sum(preds == label.long().cpu()).item()
+        labels = label.long().cpu()
+        probs = F.softmax(logits, dim=1).cpu()
+        f1_score = sklearn.metrics.f1_score(labels, preds, average='macro')
+        auc = sklearn.metrics.roc_auc_score(labels, probs, multi_class='ovo', labels = range(5))
+        num_correct = torch.sum(preds == labels).item()
         num_total = inputs.size(0)
-        return num_correct, num_total
+        return num_correct, num_total, f1_score, auc
 
     def training_step(self, batch, batch_idx):
         loss = self.get_losses_for_batch(batch, train=True)
         with torch.no_grad():
-            num_correct, num_total = self.get_accuracies_for_batch(
+            num_correct, num_total, _, _ = self.get_accuracies_for_batch(
                 batch, train=True)
             metrics = {
                 'train_loss': loss,
@@ -511,13 +517,15 @@ class TransferViewMakerSystem(pl.LightningModule):
 
     def validation_step(self, batch, batch_idx):
         loss = self.get_losses_for_batch(batch, train=False)
-        num_correct, num_total = self.get_accuracies_for_batch(
+        num_correct, num_total, f1_score, auc = self.get_accuracies_for_batch(
             batch, train=False)
         return OrderedDict({
             'val_loss': loss,
             'val_num_correct': num_correct,
             'val_num_total': num_total,
-            'val_acc': num_correct / float(num_total)
+            'val_acc': num_correct / float(num_total),
+            'f1_score': f1_score,
+            'auc': auc
         })
 
     def validation_epoch_end(self, outputs):
@@ -604,14 +612,18 @@ class TransferExpertSystem(pl.LightningModule):
         logits = self.forward(inputs, train=train)
         preds = torch.argmax(F.log_softmax(logits, dim=1), dim=1)
         preds = preds.long().cpu()
-        num_correct = torch.sum(preds == label.long().cpu()).item()
+        labels = label.long().cpu()
+        probs = F.softmax(logits, dim=1).cpu()
+        f1_score = sklearn.metrics.f1_score(labels, preds, average='macro')
+        auc = sklearn.metrics.roc_auc_score(labels, probs, multi_class='ovo', labels = range(5))
+        num_correct = torch.sum(preds == labels).item()
         num_total = inputs.size(0)
-        return num_correct, num_total
+        return num_correct, num_total, f1_score, auc
         
     def training_step(self, batch, batch_idx):
         loss = self.get_losses_for_batch(batch, train=True)
         with torch.no_grad():
-            num_correct, num_total = self.get_accuracies_for_batch(
+            num_correct, num_total, _, _ = self.get_accuracies_for_batch(
                 batch, train=True)
             metrics = {
                 'train_loss': loss,
@@ -623,13 +635,15 @@ class TransferExpertSystem(pl.LightningModule):
 
     def validation_step(self, batch, batch_idx):
         loss = self.get_losses_for_batch(batch, train=False)
-        num_correct, num_total = self.get_accuracies_for_batch(
+        num_correct, num_total, f1_score, auc = self.get_accuracies_for_batch(
             batch, train=False)
         return OrderedDict({
             'val_loss': loss,
             'val_num_correct': num_correct,
             'val_num_total': num_total,
-            'val_acc': num_correct / float(num_total)
+            'val_acc': num_correct / float(num_total),
+            'f1_score': f1_score,
+            'auc': auc
         })
 
     def validation_epoch_end(self, outputs):
