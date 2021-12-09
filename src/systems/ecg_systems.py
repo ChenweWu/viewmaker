@@ -294,7 +294,11 @@ class PretrainViewMakerSystem(PretrainExpertSimCLRSystem):
 
         if self.global_step % (len(self.train_dataset) // self.batch_size) == 0:
             views_to_log = view1.detach()[0].view(-1,32,32,1).cpu().numpy()
-            wandb.log({"examples": [wandb.Image(view, caption=f"Epoch: {self.current_epoch}, Step {self.global_step}") for view in views_to_log]})
+            inputs_to_log = inputs.detach()[0].view(-1,32,32,1).cpu().numpy()
+            diffs_to_log = views_to_log - inputs_to_log
+            wandb.log({"inputs": [wandb.Image(view, caption=f"Epoch: {self.current_epoch}, Step {self.global_step}") for view in views_to_log]})
+            wandb.log({"examples": [wandb.Image(view, caption=f"Epoch: {self.current_epoch}, Step {self.global_step}") for view in inputs_to_log]})
+            wandb.log({"diffs": [wandb.Image(view, caption=f"Epoch: {self.current_epoch}, Step {self.global_step}") for view in diffs_to_log]})
 
         return emb_dict
 
