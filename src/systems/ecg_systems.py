@@ -31,7 +31,9 @@ import pytorch_lightning as pl
 import wandb
 
 import sklearn
-
+import numpy as np
+import matplotlib.cm as cm
+from matplotlib.colors import Normalize
 
 class PretrainExpertInstDiscSystem(pl.LightningModule):
     '''Pretraining with Instance Discrimination
@@ -296,9 +298,15 @@ class PretrainViewMakerSystem(PretrainExpertSimCLRSystem):
             views_to_log = view1.detach()[0].view(-1,32,32,1).cpu().numpy()
             inputs_to_log = inputs.detach()[0].view(-1,32,32,1).cpu().numpy()
             diffs_to_log = views_to_log - inputs_to_log
-            wandb.log({"inputs": [wandb.Image(view, caption=f"Epoch: {self.current_epoch}, Step {self.global_step}") for view in views_to_log]})
-            wandb.log({"examples": [wandb.Image(view, caption=f"Epoch: {self.current_epoch}, Step {self.global_step}") for view in inputs_to_log]})
-            wandb.log({"diffs": [wandb.Image(view, caption=f"Epoch: {self.current_epoch}, Step {self.global_step}") for view in diffs_to_log]})
+#             print("min diff", np.amin(diffs_to_log))
+#             print("max diff", np.amax(diffs_to_log))
+            bound = max(abs(np.amin(diffs_to_log)), abs(np.amax(diffs_to_log)))
+            cmap = cm.bwr
+            norm = Normalize(vmin=-bound, vmax=bound)
+            f = lambda x: np.array(cmap(norm(x)))
+#             wandb.log({"inputs": [wandb.Image(view, caption=f"Epoch: {self.current_epoch}, Step {self.global_step}") for view in views_to_log]})
+#             wandb.log({"examples": [wandb.Image(view, caption=f"Epoch: {self.current_epoch}, Step {self.global_step}") for view in inputs_to_log]})
+            wandb.log({"diffs": [wandb.Image(f(view), caption=f"Epoch: {self.current_epoch}, Step {self.global_step}, Range -{bound} to {bound}") for view in diffs_to_log]})
 
         return emb_dict
 
@@ -339,12 +347,14 @@ class PretrainViewMakerSystem(PretrainExpertSimCLRSystem):
             metrics = {
                 'encoder_loss': encoder_loss,
             }
+#             wandb.log(metrics)
             return {'loss': encoder_loss, 'log': metrics}
         else:
             # update the bound allowed for view
             self.view.bound_magnitude = self.get_view_bound_magnitude()
 
             metrics = {'view_maker_loss': view_maker_loss}
+#             wandb.log(metrics)
             return {'loss': view_maker_loss, 'log': metrics}
 
     def validation_step(self, batch, batch_idx):
@@ -366,6 +376,7 @@ class PretrainViewMakerSystem(PretrainExpertSimCLRSystem):
         val_acc = num_correct / float(num_total)
         metrics['val_acc'] = val_acc
         progress_bar = {'acc': val_acc}
+#         wandb.log(metrics)
         return {'log': metrics, 'val_acc': val_acc, 'progress_bar': progress_bar}
 
 
@@ -542,6 +553,7 @@ class TransferViewMakerSystem(pl.LightningModule):
         val_acc = num_correct / float(num_total)
         metrics['val_acc'] = val_acc
         progress_bar = {'acc': val_acc}
+        
         return {'val_loss': metrics['val_loss'], 'log': metrics, 'val_acc': val_acc, 'progress_bar': progress_bar}
 
     def train_dataloader(self):
