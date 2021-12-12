@@ -34,7 +34,7 @@ FEATURE_STDS=np.array([0.13347071, 0.19802795, 0.15897414, 0.14904783, 0.1083673
        0.23750131, 0.19444742])
 
 
-class PTB_XL(data.Dataset):
+class PTB_XL_1d(data.Dataset):
     NUM_CLASSES = 5  # NOTE: They're not contiguous labels.
     NUM_CHANNELS = 12 # Multiple sensor readings from different parts of the body
     FILTER_SIZE = 32
@@ -50,7 +50,7 @@ class PTB_XL(data.Dataset):
         super().__init__()
         self.examples_per_epoch = examples_per_epoch
         self.sensor_transforms = sensor_transforms
-        self.dataset = BasePTB_XL(
+        self.dataset = BasePTB_XL_1d(
             mode=mode, 
             root=root, 
             examples_per_epoch=examples_per_epoch)
@@ -90,7 +90,7 @@ class PTB_XL(data.Dataset):
 
 
 
-class BasePTB_XL(data.Dataset):
+class BasePTB_XL_1d(data.Dataset):
 
     def __init__(
         self,
@@ -149,7 +149,7 @@ class BasePTB_XL(data.Dataset):
             tmp = []
             for key in y_dic.keys():
                 if key in agg_df.index:
-                    tmp.append(agg_df.loc[key].diagnostic_class)
+                    tmp.append(agg_df.loc[key].diagnostic_subclass)
             conf=list(y_dic.values())
             inds = []
             seen = set()
@@ -187,15 +187,16 @@ class BasePTB_XL(data.Dataset):
         max_conf=np.argmax(self.subject_data[2][ecgid])
         diagnosis_id = DIAGNOSTIC_SUBCLASS.index(self.subject_data[1][ecgid][max_conf])
         measurements = self.subject_data[0][ecgid]
-
-        # Yields spectrograms of shape [52, 32, 32]
-        spectrogram_transform=Spectrogram(n_fft=64-1, hop_length=32, power=2)
-        spectrogram = spectrogram_transform(torch.tensor(measurements.T))
-        spectrogram = (spectrogram + 1e-6).log()
-        if self.normalize:
-            spectrogram = (spectrogram - FEATURE_MEANS.reshape(-1, 1, 1)) / FEATURE_STDS.reshape(-1, 1, 1)
+#         print(type(measurements))
+#         print(measurements.T.shape)
+#         # Yields spectrograms of shape [52, 32, 32]
+#         spectrogram_transform=Spectrogram(n_fft=64-1, hop_length=32, power=2)
+#         spectrogram = spectrogram_transform(torch.tensor(measurements.T))
+#         spectrogram = (spectrogram + 1e-6).log()
+#         if self.normalize:
+#             spectrogram = (spectrogram - FEATURE_MEANS.reshape(-1, 1, 1)) / FEATURE_STDS.reshape(-1, 1, 1)
 #         print("spectrogram shape", spectrogram.shape)
-        return spectrogram, diagnosis_id
+        return torch.tensor(measurements.T), diagnosis_id
 
     
     def __len__(self):

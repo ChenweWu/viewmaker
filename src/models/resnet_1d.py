@@ -22,6 +22,8 @@ class BasicBlock(nn.Module):
                dilation: int = 1, norm_layer: Optional[Callable[..., nn.Module]] = None) -> None:
     super(BasicBlock, self).__init__()
     if groups != 1 or base_width != 64:
+      print("groups", groups)
+      print("base_width", base_width)
       raise ValueError("BasicBlock only supports groups=1 and base_width=64")
     if dilation > 1:
       raise NotImplementedError("Dilation > 1 not supported in BasicBlock")
@@ -106,8 +108,8 @@ class Bottleneck(nn.Module):
 
 
 class ResNet(nn.Module):
-  def __init__(self, block: Type[Union[BasicBlock, Bottleneck]], layers: List[int],
-               num_input_channels: int, zero_init_residual: bool = False,
+  def __init__(self, block: Type[Union[BasicBlock, Bottleneck]], layers: List[int], num_classes,
+               num_input_channels: int, input_size, zero_init_residual: bool = False,
                groups: int = 1, width_per_group: int = 64,
                replace_stride_with_dilation: Optional[List[bool]] = None,
                norm_layer: Optional[Callable[..., nn.Module]] = None) -> None:
@@ -143,6 +145,11 @@ class ResNet(nn.Module):
                                     dilate=replace_stride_with_dilation[2])
     self.avgpool = nn.AdaptiveAvgPool1d(1)
     self.flatten = nn.Flatten()
+    fc_input_size = 512 * block.expansion * (4 if input_size == 64 else 1)
+#     print("fc_input_size", fc_input_size)
+#     print("block.expansion", block.expansion)
+    
+    self.fc = nn.Linear(fc_input_size, out_features=num_classes)
 
     for m in self.modules():
       if isinstance(m, nn.Conv1d):
@@ -188,27 +195,54 @@ class ResNet(nn.Module):
 
     return nn.Sequential(*layers)
 
-  def _forward_impl(self, x: Tensor) -> Tensor:
-    x = self.conv1(x)
-    x = self.bn1(x)
-    x = self.relu(x)
-    x = self.maxpool(x)
+  def _forward_impl(self, x: Tensor, layer=7) -> Tensor:
+    if layer <= 0: 
+        return x
+    out = self.relu(self.bn1(self.conv1(x)))
+    if layer == 1:
+        return out
+    out = self.maxpool(out)
+    out = self.layer1(out)
+    if layer == 2:
+        return out
+    out = self.layer2(out)
+    if layer == 3:
+        return out
+    out = self.layer3(out)
+    if layer == 4:
+        return out
+    out = self.layer4(out)
+    if layer == 5:
+        return out
+    out = self.avgpool(out)
+    out = self.flatten(out)
+#     print("out after layer 6", out.shape)
+    if layer == 6:
+        return out
+    out = self.fc(out)
+    return out
+#     x = self.conv1(x)
+#     x = self.bn1(x)
+#     x = self.relu(x)
+#     x = self.maxpool(x)
 
-    x = self.layer1(x)
-    x = self.layer2(x)
-    x = self.layer3(x)
-    x = self.layer4(x)
+#     x = self.layer1(x)
+#     x = self.layer2(x)
+#     x = self.layer3(x)
+#     x = self.layer4(x)
 
-    x = self.avgpool(x)
-    x = self.flatten(x)
+#     x = self.avgpool(x)
+#     x = self.flatten(x)
 
-    return x
+#     return x
 
-  def forward(self, x: Tensor) -> Tensor:
-    return self._forward_impl(x)
+  def forward(self, x: Tensor, layer=7) -> Tensor:
+    return self._forward_impl(x, layer)
 
-def resnet18(num_input_channels: int, **kwargs: Dict) -> ResNet:
-  return ResNet(BasicBlock, [2, 2, 2, 2], num_input_channels, **kwargs)
+def ResNet18(num_classes, num_channels: int, input_size=32, **kwargs: Dict) -> ResNet:
+#     ResNet(BasicBlock, [2,2,2,2], num_classes, num_channels=num_channels, 
+#                   input_size=input_size)
+  return ResNet(BasicBlock, [2, 2, 2, 2], num_classes, num_channels, input_size, **kwargs)
 
 def resnet34(num_input_channels: int, **kwargs: Dict) -> ResNet:
   return ResNet(BasicBlock, [3, 4, 6, 3], num_input_channels, **kwargs)
