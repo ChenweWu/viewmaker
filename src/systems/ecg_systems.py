@@ -304,8 +304,8 @@ class PretrainViewMakerSystem(PretrainExpertSimCLRSystem):
             cmap = cm.bwr
             norm = Normalize(vmin=-bound, vmax=bound)
             f = lambda x: np.array(cmap(norm(x)))
-#             wandb.log({"inputs": [wandb.Image(view, caption=f"Epoch: {self.current_epoch}, Step {self.global_step}") for view in views_to_log]})
-#             wandb.log({"examples": [wandb.Image(view, caption=f"Epoch: {self.current_epoch}, Step {self.global_step}") for view in inputs_to_log]})
+#             wandb.log({"views": [wandb.Image(view, caption=f"Epoch: {self.current_epoch}, Step {self.global_step}") for view in views_to_log]})
+#             wandb.log({"inputs": [wandb.Image(view, caption=f"Epoch: {self.current_epoch}, Step {self.global_step}") for view in inputs_to_log]})
             wandb.log({"diffs": [wandb.Image(f(view), caption=f"Epoch: {self.current_epoch}, Step {self.global_step}, Range -{bound} to {bound}") for view in diffs_to_log]})
 
         return emb_dict
@@ -512,7 +512,7 @@ class TransferViewMakerSystem(pl.LightningModule):
         labels = label.long().cpu()
         probs = F.softmax(logits, dim=1).cpu()
         f1_score = sklearn.metrics.f1_score(labels, preds, average='macro')
-        auc = sklearn.metrics.roc_auc_score(labels, probs, multi_class='ovo', labels = range(5))
+        auc = sklearn.metrics.roc_auc_score(labels, probs, multi_class='ovo', labels = range(23))
         num_correct = torch.sum(preds == labels).item()
         num_total = inputs.size(0)
         return num_correct, num_total, f1_score, auc
@@ -631,7 +631,7 @@ class TransferExpertSystem(pl.LightningModule):
         labels = label.long().cpu()
         probs = F.softmax(logits, dim=1).cpu()
         f1_score = sklearn.metrics.f1_score(labels, preds, average='macro')
-        auc = sklearn.metrics.roc_auc_score(labels, probs, multi_class='ovo', labels = range(5))
+        auc = sklearn.metrics.roc_auc_score(labels, probs, multi_class='ovo', labels = range(23))
         num_correct = torch.sum(preds == labels).item()
         num_total = inputs.size(0)
         return num_correct, num_total, f1_score, auc

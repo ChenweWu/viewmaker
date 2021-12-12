@@ -35,7 +35,7 @@ FEATURE_STDS=np.array([0.13347071, 0.19802795, 0.15897414, 0.14904783, 0.1083673
 
 
 class PTB_XL_1d(data.Dataset):
-    NUM_CLASSES = 5  # NOTE: They're not contiguous labels.
+    NUM_CLASSES = 23  # NOTE: They're not contiguous labels.
     NUM_CHANNELS = 12 # Multiple sensor readings from different parts of the body
     FILTER_SIZE = 32
     MULTI_LABEL = False

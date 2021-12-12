@@ -14,5 +14,5 @@ cd /n/scratch3/users/k/kaw308/viewmaker
 source init_env.sh
 
 # srun python scripts/run_ecg.py config/ecg/pretrain_expert_ptb_xl_simclr.json --gpu-device 0
-# srun python scripts/run_ecg.py config/ecg/transfer_expert_ptb_xl_simclr.json --gpu-device 0
+srun python scripts/run_ecg.py config/ecg/transfer_expert_ptb_xl_simclr.json --gpu-device 0
 srun python scripts/run_ecg.py config/ecg/transfer_expert_ptb_xl_supervised.json --gpu-device 0

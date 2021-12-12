@@ -35,7 +35,7 @@ FEATURE_STDS=np.array([0.13347071, 0.19802795, 0.15897414, 0.14904783, 0.1083673
 
 
 class PTB_XL(data.Dataset):
-    NUM_CLASSES = 5  # NOTE: They're not contiguous labels.
+    NUM_CLASSES = 23  # NOTE: They're not contiguous labels.
     NUM_CHANNELS = 12 # Multiple sensor readings from different parts of the body
     FILTER_SIZE = 32
     MULTI_LABEL = False
@@ -149,7 +149,7 @@ class BasePTB_XL(data.Dataset):
             tmp = []
             for key in y_dic.keys():
                 if key in agg_df.index:
-                    tmp.append(agg_df.loc[key].diagnostic_class)
+                    tmp.append(agg_df.loc[key].diagnostic_subclass)
             conf=list(y_dic.values())
             inds = []
             seen = set()
@@ -195,6 +195,7 @@ class BasePTB_XL(data.Dataset):
         if self.normalize:
             spectrogram = (spectrogram - FEATURE_MEANS.reshape(-1, 1, 1)) / FEATURE_STDS.reshape(-1, 1, 1)
 #         print("spectrogram shape", spectrogram.shape)
+#         print("diagnosis_id", diagnosis_id)
         return spectrogram, diagnosis_id
 
     

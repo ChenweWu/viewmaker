@@ -1,5 +1,8 @@
+import matplotlib
+matplotlib.use('Agg')
+
 """
-Contrastive learning on wearable sensor data
+Contrastive learning on ecg data
 
 Contains PL Systems for SimCLR and Viewmaker methods (pretraining and linear evaluation).
 """
@@ -34,7 +37,7 @@ import sklearn
 import numpy as np
 import matplotlib.cm as cm
 from matplotlib.colors import Normalize
-
+import matplotlib.pyplot as plt
 class PretrainExpertInstDiscSystem(pl.LightningModule):
     '''Pretraining with Instance Discrimination
     
@@ -294,19 +297,52 @@ class PretrainViewMakerSystem(PretrainExpertSimCLRSystem):
             'labels': labels,
         }
 
-#         if self.global_step % (len(self.train_dataset) // self.batch_size) == 0:
-#             views_to_log = view1.detach()[0].view(-1,32,32,1).cpu().numpy()
-#             inputs_to_log = inputs.detach()[0].view(-1,32,32,1).cpu().numpy()
-#             diffs_to_log = views_to_log - inputs_to_log
-# #             print("min diff", np.amin(diffs_to_log))
-# #             print("max diff", np.amax(diffs_to_log))
-#             bound = max(abs(np.amin(diffs_to_log)), abs(np.amax(diffs_to_log)))
-#             cmap = cm.bwr
-#             norm = Normalize(vmin=-bound, vmax=bound)
-#             f = lambda x: np.array(cmap(norm(x)))
-# #             wandb.log({"inputs": [wandb.Image(view, caption=f"Epoch: {self.current_epoch}, Step {self.global_step}") for view in views_to_log]})
-# #             wandb.log({"examples": [wandb.Image(view, caption=f"Epoch: {self.current_epoch}, Step {self.global_step}") for view in inputs_to_log]})
-#             wandb.log({"diffs": [wandb.Image(f(view), caption=f"Epoch: {self.current_epoch}, Step {self.global_step}, Range -{bound} to {bound}") for view in diffs_to_log]})
+        if self.global_step % (len(self.train_dataset) // self.batch_size) == 0:
+            views_to_log = view1.detach()[0].view(-1,1000,1).cpu().numpy()
+            inputs_to_log = inputs.detach()[0].view(-1,1000,1).cpu().numpy()
+            diffs_to_log = views_to_log - inputs_to_log
+#             print("min diff", np.amin(diffs_to_log))
+#             print("max diff", np.amax(diffs_to_log))
+            bound = max(abs(np.amin(diffs_to_log)), abs(np.amax(diffs_to_log)))
+            cmap = cm.bwr
+            norm = Normalize(vmin=-bound, vmax=bound)
+            f = lambda x: np.array(cmap(norm(x)))
+#             wandb.log({"inputs": [wandb.Image(view, caption=f"Epoch: {self.current_epoch}, Step {self.global_step}") for view in views_to_log]})
+#             wandb.log({"examples": [wandb.Image(view, caption=f"Epoch: {self.current_epoch}, Step {self.global_step}") for view in inputs_to_log]})
+#             x_values, y_values = np.arange(20), np.arange(20)
+#             data = [[x, y] for (x, y) in zip(x_values, y_values)]
+#             table = wandb.Table(data=data, columns = ["x", "y"])
+#             wandb.log({"my_custom_plot_id" : wandb.plot.line(table, "x", "y", title="Custom Y vs X Line Plot")})
+            inputs = []
+            augs = []
+            diffs = []
+            for view in diffs_to_log:
+                f, ax = plt.subplots()
+                ax.plot(np.arange(1000), view)
+                ax.set_xlabel("t")
+                ax.set_ylabel("Added Signal")
+                ax.set_title("Perturbation Added to ECG 1D signal")
+                diffs.append(wandb.Image(ax, caption=f"Epoch: {self.current_epoch}, Step {self.global_step}"))
+                plt.close('all')
+            wandb.log({"diffs":diffs})
+            for view in views_to_log:
+                f, ax = plt.subplots()
+                ax.plot(np.arange(1000), view)
+                ax.set_xlabel("t")
+                ax.set_ylabel("Augmented Signal")
+                ax.set_title("Augmented ECG 1D signal")
+                diffs.append(wandb.Image(ax, caption=f"Epoch: {self.current_epoch}, Step {self.global_step}"))
+                plt.close('all') 
+            wandb.log({"augmented inputs":augs})
+            for view in inputs_to_log:
+                f, ax = plt.subplots()
+                ax.plot(np.arange(1000), view)
+                ax.set_xlabel("t")
+                ax.set_ylabel("Signal")
+                ax.set_title("Input ECG 1D signal")
+                diffs.append(wandb.Image(ax, caption=f"Epoch: {self.current_epoch}, Step {self.global_step}"))
+                plt.close('all') 
+            wandb.log({"inputs" : inputs})
 
         return emb_dict
 
