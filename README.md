@@ -42,3 +42,4 @@ The `src/systems` directory holds:
 - `ecg_systems.py`: for initializing pretraining and transfer learning models with spectrogram inputs
 - `ecg_1d_systems.py`: initializing pretraining and transfer learning models with 1D time series signal inputs
 
+All WandB logged experiments can be found here: https://wandb.ai/viewmaker-ecg/ecg
