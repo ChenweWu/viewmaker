@@ -37,6 +37,8 @@ The `src/datasets` directory holds:
 The `src/models` directory holds:
 - `resnet_1d.py`: for running a ResNet18 on 1D inputs. Taken from 3KG codebase.
 - `viewmaker_1d.py`: for running a Viewmaker network on 1D inputs. Inspired by resnet_1d.py.
+- `aug_3kg.py`: for applying 3KG's benchmark augmentations. Taken directly from the original publication codebase for comparison purposes.
+- `vcg.py`: for transforming between 1D ECG space and 3D VCG space in 3KG's implementation. Taken directly from the original publication codebase for comparison purposes.
 
 The `src/systems` directory holds:
 - `ecg_systems.py`: for initializing pretraining and transfer learning models with spectrogram inputs
