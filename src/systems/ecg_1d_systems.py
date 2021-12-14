@@ -38,6 +38,9 @@ import numpy as np
 import matplotlib.cm as cm
 from matplotlib.colors import Normalize
 import matplotlib.pyplot as plt
+from src.models.vcg import *
+from src.models.aug_3kg import *
+
 class PretrainExpertInstDiscSystem(pl.LightningModule):
     '''Pretraining with Instance Discrimination
     
@@ -225,6 +228,8 @@ class PretrainViewMakerSystem(PretrainExpertSimCLRSystem):
     def __init__(self, config):
         super().__init__(config)
         self.view = self.create_viewmaker()
+        self.aug_3kg = self.create_3kg_aug()
+        
 
     def create_datasets(self):
         print('Initializing validation dataset.')
@@ -253,6 +258,14 @@ class PretrainViewMakerSystem(PretrainExpertSimCLRSystem):
             clamp=False,
         )
         return view_model
+    
+    def create_3kg_aug(self):
+        return SingleRandomTransform(
+      RandomRotation(45),
+      RandomScale(1.5),
+      RandomGaussian(False),
+      RandomTimeMask(0.5)
+        )
 
     def configure_optimizers(self):
         encoder_optim = torch.optim.SGD(
@@ -298,15 +311,19 @@ class PretrainViewMakerSystem(PretrainExpertSimCLRSystem):
         }
 
         if self.global_step % (len(self.train_dataset) // self.batch_size) == 0:
+            inputs3 = inputs2.cpu()
+    #         print(inputs2[0].shape)
+            view3 = torch.stack([self.aug_3kg(inputi)[0] for inputi in inputs3])
             views_to_log = view1.detach()[0].view(-1,1000,1).cpu().numpy()
             inputs_to_log = inputs.detach()[0].view(-1,1000,1).cpu().numpy()
+            aug_3kg_to_log = view3.detach()[0].view(-1,1000,1).cpu().numpy()
             diffs_to_log = views_to_log - inputs_to_log
 #             print("min diff", np.amin(diffs_to_log))
 #             print("max diff", np.amax(diffs_to_log))
-            bound = max(abs(np.amin(diffs_to_log)), abs(np.amax(diffs_to_log)))
-            cmap = cm.bwr
-            norm = Normalize(vmin=-bound, vmax=bound)
-            f = lambda x: np.array(cmap(norm(x)))
+#             bound = max(abs(np.amin(diffs_to_log)), abs(np.amax(diffs_to_log)))
+#             cmap = cm.bwr
+#             norm = Normalize(vmin=-bound, vmax=bound)
+#             f = lambda x: np.array(cmap(norm(x)))
 #             wandb.log({"inputs": [wandb.Image(view, caption=f"Epoch: {self.current_epoch}, Step {self.global_step}") for view in views_to_log]})
 #             wandb.log({"examples": [wandb.Image(view, caption=f"Epoch: {self.current_epoch}, Step {self.global_step}") for view in inputs_to_log]})
 #             x_values, y_values = np.arange(20), np.arange(20)
@@ -316,33 +333,43 @@ class PretrainViewMakerSystem(PretrainExpertSimCLRSystem):
             inputs = []
             augs = []
             diffs = []
+            aug_3kg = []
             for view in diffs_to_log:
                 f, ax = plt.subplots()
                 ax.plot(np.arange(1000), view)
                 ax.set_xlabel("t")
-                ax.set_ylabel("Added Signal")
-                ax.set_title("Perturbation Added to ECG 1D signal")
+                ax.set_ylabel("Signal")
+                ax.set_title("Viewmaker Perturbation Added to ECG 1D signal")
                 diffs.append(wandb.Image(ax, caption=f"Epoch: {self.current_epoch}, Step {self.global_step}"))
                 plt.close('all')
-            wandb.log({"diffs":diffs})
+#             wandb.log({"diffs":diffs, "epoch": self.current_epoch})
             for view in views_to_log:
                 f, ax = plt.subplots()
                 ax.plot(np.arange(1000), view)
                 ax.set_xlabel("t")
-                ax.set_ylabel("Augmented Signal")
-                ax.set_title("Augmented ECG 1D signal")
-                diffs.append(wandb.Image(ax, caption=f"Epoch: {self.current_epoch}, Step {self.global_step}"))
+                ax.set_ylabel("Signal")
+                ax.set_title("Viewmaker Augmented ECG 1D signal")
+                augs.append(wandb.Image(ax, caption=f"Epoch: {self.current_epoch}, Step {self.global_step}"))
                 plt.close('all') 
-            wandb.log({"augmented inputs":augs})
+#             wandb.log({"augmented inputs":augs, "epoch": self.current_epoch})
             for view in inputs_to_log:
                 f, ax = plt.subplots()
                 ax.plot(np.arange(1000), view)
                 ax.set_xlabel("t")
                 ax.set_ylabel("Signal")
                 ax.set_title("Input ECG 1D signal")
-                diffs.append(wandb.Image(ax, caption=f"Epoch: {self.current_epoch}, Step {self.global_step}"))
+                inputs.append(wandb.Image(ax, caption=f"Epoch: {self.current_epoch}, Step {self.global_step}"))
                 plt.close('all') 
-            wandb.log({"inputs" : inputs})
+#             wandb.log({"inputs" : inputs, "epoch": self.current_epoch})
+            for view in aug_3kg_to_log:
+                f, ax = plt.subplots()
+                ax.plot(np.arange(1000), view)
+                ax.set_xlabel("t")
+                ax.set_ylabel("Signal")
+                ax.set_title("3kg Augmented ECG 1D signal")
+                aug_3kg.append(wandb.Image(ax, caption=f"Epoch: {self.current_epoch}, Step {self.global_step}"))
+                plt.close('all') 
+            wandb.log({"diffs":diffs,"augmented inputs":augs,"inputs" : inputs,"3kg augs" : aug_3kg, "epoch": self.current_epoch})
 
         return emb_dict
 
@@ -393,27 +420,48 @@ class PretrainViewMakerSystem(PretrainExpertSimCLRSystem):
 #             wandb.log(metrics)
             return {'loss': view_maker_loss, 'log': metrics}
 
-#     def validation_step(self, batch, batch_idx):
-#         _, inputs1, inputs2, labels = batch
+    def validation_step(self, batch, batch_idx):
+        _, inputs1, inputs2, labels = batch
+        view1 = self.view(inputs1)
+        view1 = view1.cpu()
+#         print(type(inputs2))
+        inputs2 = inputs2.cpu()
+#         print(inputs2[0].shape)
+        view2 = torch.stack([self.aug_3kg(inputi)[0] for inputi in inputs2])
+        view1 = torch.flatten(view1, start_dim=1)
+        view2 = torch.flatten(view2, start_dim=1)
+#         print(view1.shape, view2.shape)
+        cos = nn.CosineSimilarity(dim=1, eps=1e-6)
+        cossim = cos(view1, view2)
+#         print("cossim dim", cossim.shape)
+        output = OrderedDict({
+            'cosine_sim': cossim,
+        })
+            
+#         return output
+#         print("view1 shape", view1.shape)
+#         print("view2 shape", view2.shape)
 #         outputs = self.model(inputs1)
 #         num_correct, batch_size = self.get_nearest_neighbor_label(outputs, labels)
 #         output = OrderedDict({
 #             'val_num_correct': torch.tensor(num_correct, dtype=float, device=self.device),
 #             'val_num_total': torch.tensor(batch_size, dtype=float, device=self.device),
 #         })
-#         return output
+        return output
 
-#     def validation_epoch_end(self, outputs):
-#         metrics = {}
+    def validation_epoch_end(self, outputs):
+        metrics = {}
 #         for key in outputs[0].keys():
 #             metrics[key] = torch.stack([elem[key] for elem in outputs]).mean()
 #         num_correct = torch.stack([out['val_num_correct'] for out in outputs]).sum()
 #         num_total = torch.stack([out['val_num_total'] for out in outputs]).sum()
 #         val_acc = num_correct / float(num_total)
-#         metrics['val_acc'] = val_acc
-#         progress_bar = {'acc': val_acc}
-# #         wandb.log(metrics)
+        metrics['cosine_sim'] = torch.stack([out['cosine_sim'] for out in outputs]).mean()
+        metrics['epoch'] = self.current_epoch
+#         progress_bar = {'acc': outputs['cosine_sim']}
+        wandb.log(metrics)
 #         return {'log': metrics, 'val_acc': val_acc, 'progress_bar': progress_bar}
+        return {'log': metrics}
 
 
 class TransferViewMakerSystem(pl.LightningModule):
@@ -548,7 +596,7 @@ class TransferViewMakerSystem(pl.LightningModule):
         labels = label.long().cpu()
         probs = F.softmax(logits, dim=1).cpu()
         f1_score = sklearn.metrics.f1_score(labels, preds, average='macro')
-        auc = sklearn.metrics.roc_auc_score(labels, probs, multi_class='ovo', labels = range(5))
+        auc = sklearn.metrics.roc_auc_score(labels, probs, multi_class='ovo', labels = range(23))
         num_correct = torch.sum(preds == labels).item()
         num_total = inputs.size(0)
         return num_correct, num_total, f1_score, auc
@@ -667,7 +715,7 @@ class TransferExpertSystem(pl.LightningModule):
         labels = label.long().cpu()
         probs = F.softmax(logits, dim=1).cpu()
         f1_score = sklearn.metrics.f1_score(labels, preds, average='macro')
-        auc = sklearn.metrics.roc_auc_score(labels, probs, multi_class='ovo', labels = range(5))
+        auc = sklearn.metrics.roc_auc_score(labels, probs, multi_class='ovo', labels = range(23))
         num_correct = torch.sum(preds == labels).item()
         num_total = inputs.size(0)
         return num_correct, num_total, f1_score, auc
