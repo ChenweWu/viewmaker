@@ -19,7 +19,7 @@ source init_env.sh
 Now, you can run experiments for the different modalities as follows:
 
 ```console
-scripts/run_sensor.py config/sensor/pretrain_viewmaker_pamap2_simclr.json --gpu-device 0
+scripts/run_ecg.py config/ecg/pretrain_viewmaker_ptb_xl_simclr.json --gpu-device 0
 ```
 
 Scripts contributed for COS429 Final Project:
