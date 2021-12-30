@@ -21,6 +21,7 @@ from src.models import resnet_small
 from src.objectives.memory_bank import MemoryBank
 
 from src.utils.utils import l2_normalize, frozen_params, load_json
+from src.utils.auto_threshold_f1 import AutoThresholdF1
 from src.systems.image_systems import create_dataloader
 from src.objectives.simclr import SimCLRObjective
 from src.objectives.adversarial import AdversarialSimCLRLoss
@@ -31,9 +32,12 @@ import pytorch_lightning as pl
 import wandb
 
 import sklearn
+from torchmetrics.functional import precision_recall_curve, f1
 import numpy as np
 import matplotlib.cm as cm
 from matplotlib.colors import Normalize
+from torchmetrics import AUROC
+from sklearn.preprocessing import OneHotEncoder
 
 class PretrainExpertInstDiscSystem(pl.LightningModule):
     '''Pretraining with Instance Discrimination
@@ -419,6 +423,8 @@ class TransferViewMakerSystem(pl.LightningModule):
         self.num_features = num_features
         self.train_dataset, self.val_dataset = self.create_datasets()
         self.model = self.create_model()
+        self.f1_metric = AutoThresholdF1(num_classes=23, average="macro", compute_on_step=False)
+        self.auroc_metric = AUROC(num_classes=23, average="macro", compute_on_step=False)
 
     def load_pretrained_model(self):
         base_dir = self.config.pretrain_model.exp_dir
@@ -511,8 +517,24 @@ class TransferViewMakerSystem(pl.LightningModule):
         preds = preds.long().cpu()
         labels = label.long().cpu()
         probs = F.softmax(logits, dim=1).cpu()
-        f1_score = sklearn.metrics.f1_score(labels, preds, average='macro')
-        auc = sklearn.metrics.roc_auc_score(labels, probs, multi_class='ovo', labels = range(23))
+#         print("probs shape", probs.shape)
+        self.auroc_metric(probs, labels)
+        labels = labels[:, None]
+       
+#         print("labels shape", labels.shape)
+        onehot_encoder = OneHotEncoder(categories = [np.arange(23)], sparse=False)
+        onehot_encoded = torch.tensor(onehot_encoder.fit_transform(labels))
+#         print("one hot labels shape", onehot_encoded.shape)
+        
+#         f1_score = sklearn.metrics.f1_score(labels, preds, average='macro')
+#         auc = sklearn.metrics.roc_auc_score(labels, probs, multi_class='ovo', labels = range(23))
+        self.f1_metric(probs, onehot_encoded)
+        
+#         assert torch.all(torch.eq(self.f1_metric.preds, probs)), "problem with probs"
+#         assert torch.all(torch.eq(self.f1_metric.target, labels)), "problem with labels"
+        f1_score = self.f1_metric.compute()
+        auc = self.auroc_metric.compute()
+        
         num_correct = torch.sum(preds == labels).item()
         num_total = inputs.size(0)
         return num_correct, num_total, f1_score, auc
