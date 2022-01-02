@@ -21,8 +21,8 @@ class AutoThresholdF1(Metric):
     self.add_state("target", default=[])
   
   def update(self, preds: Tensor, target: Tensor):
-    self.preds=preds
-    self.target=target
+    self.preds.append(preds)
+    self.target.append(target)
   
   def freeze(self):
     self.update_thresholds = False
@@ -31,29 +31,26 @@ class AutoThresholdF1(Metric):
     self.update_thresholds = True
 
   def compute(self):
-    preds = self.preds
+    preds = torch.cat(self.preds, dim=0)
 #     print("preds shape", preds.shape)
-#     print(preds[..., 0].shape)
-    target = self.target
+    target = torch.cat(self.target, dim=0)
 #     print("target shape", target.shape)
     output = torch.zeros(self.num_classes)
-#     print(precision_recall_curve(preds[..., 0], target[0]))
-    
+
     if self.update_thresholds:
-#       print("updating thresholds")
       for i in range(self.num_classes):
         try:
-#           print("starting prc")
           p, r, t = precision_recall_curve(preds[..., i], target[..., i])
-#           print(p.shape, r.shape, t.shape)
-#           print("did prc")
+#           print("got prt")
           f1_scores = 2 * (p * r) / (p + r)
           f1_scores.masked_fill_(f1_scores.isnan(), 0)
-#           print("did masked fill")
+          
           max_f1_idx = f1_scores[:-1].argmax()
+#           print("did masked fill and argmax")
           self.thresholds[i] = t[max_f1_idx]
+#           print("got threshold")
           output[i] = f1_scores[max_f1_idx]
-#           print(self.thresholds)
+#           print("got output")
         except Exception as e:
           print(f"Could not calculate F1 for class {i}: {e}")
     else:

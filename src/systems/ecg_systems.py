@@ -37,7 +37,6 @@ import numpy as np
 import matplotlib.cm as cm
 from matplotlib.colors import Normalize
 from torchmetrics import AUROC
-from sklearn.preprocessing import OneHotEncoder
 
 class PretrainExpertInstDiscSystem(pl.LightningModule):
     '''Pretraining with Instance Discrimination
@@ -512,37 +511,25 @@ class TransferViewMakerSystem(pl.LightningModule):
 
     def get_accuracies_for_batch(self, batch, train=True):
         _, inputs, inputs2, label = batch
+        onehot_encoded = F.one_hot(label, num_classes=23)
         logits = self.forward(inputs, train=train)
         preds = torch.argmax(F.log_softmax(logits, dim=1), dim=1)
-        preds = preds.long().cpu()
-        labels = label.long().cpu()
-        probs = F.softmax(logits, dim=1).cpu()
-#         print("probs shape", probs.shape)
-        self.auroc_metric(probs, labels)
-        labels = labels[:, None]
-       
-#         print("labels shape", labels.shape)
-        onehot_encoder = OneHotEncoder(categories = [np.arange(23)], sparse=False)
-        onehot_encoded = torch.tensor(onehot_encoder.fit_transform(labels))
-#         print("one hot labels shape", onehot_encoded.shape)
+        probs = F.softmax(logits, dim=1)
         
-#         f1_score = sklearn.metrics.f1_score(labels, preds, average='macro')
-#         auc = sklearn.metrics.roc_auc_score(labels, probs, multi_class='ovo', labels = range(23))
+        self.auroc_metric(probs, label.long())
         self.f1_metric(probs, onehot_encoded)
         
-#         assert torch.all(torch.eq(self.f1_metric.preds, probs)), "problem with probs"
-#         assert torch.all(torch.eq(self.f1_metric.target, labels)), "problem with labels"
-        f1_score = self.f1_metric.compute()
-        auc = self.auroc_metric.compute()
+        preds = preds.long().cpu()
+        labels = label.long().cpu()
         
         num_correct = torch.sum(preds == labels).item()
         num_total = inputs.size(0)
-        return num_correct, num_total, f1_score, auc
+        return num_correct, num_total
 
     def training_step(self, batch, batch_idx):
         loss = self.get_losses_for_batch(batch, train=True)
         with torch.no_grad():
-            num_correct, num_total, _, _ = self.get_accuracies_for_batch(
+            num_correct, num_total = self.get_accuracies_for_batch(
                 batch, train=True)
             metrics = {
                 'train_loss': loss,
@@ -554,15 +541,13 @@ class TransferViewMakerSystem(pl.LightningModule):
 
     def validation_step(self, batch, batch_idx):
         loss = self.get_losses_for_batch(batch, train=False)
-        num_correct, num_total, f1_score, auc = self.get_accuracies_for_batch(
+        num_correct, num_total = self.get_accuracies_for_batch(
             batch, train=False)
         return OrderedDict({
             'val_loss': loss,
             'val_num_correct': num_correct,
             'val_num_total': num_total,
-            'val_acc': num_correct / float(num_total),
-            'f1_score': f1_score,
-            'auc': auc
+            'val_acc': num_correct / float(num_total)
         })
 
     def validation_epoch_end(self, outputs):
@@ -574,7 +559,11 @@ class TransferViewMakerSystem(pl.LightningModule):
         num_total = sum([out['val_num_total'] for out in outputs])
         val_acc = num_correct / float(num_total)
         metrics['val_acc'] = val_acc
+        metrics['f1_score'] = self.f1_metric.compute()
+        metrics['auroc'] = self.auroc_metric.compute()
         progress_bar = {'acc': val_acc}
+        self.f1_metric.reset()
+        self.auroc_metric.reset()
         
         return {'val_loss': metrics['val_loss'], 'log': metrics, 'val_acc': val_acc, 'progress_bar': progress_bar}
 
