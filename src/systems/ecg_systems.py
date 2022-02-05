@@ -21,6 +21,7 @@ from src.models import resnet_small
 from src.objectives.memory_bank import MemoryBank
 
 from src.utils.utils import l2_normalize, frozen_params, load_json
+from src.utils.auto_threshold_f1 import AutoThresholdF1
 from src.systems.image_systems import create_dataloader
 from src.objectives.simclr import SimCLRObjective
 from src.objectives.adversarial import AdversarialSimCLRLoss
@@ -31,9 +32,14 @@ import pytorch_lightning as pl
 import wandb
 
 import sklearn
+from torchmetrics.functional import precision_recall_curve, f1
 import numpy as np
 import matplotlib.cm as cm
 from matplotlib.colors import Normalize
+from torchmetrics import AUROC
+import collections
+
+DIAGNOSTIC_SUBCLASS=['ISCA', 'LVH', 'IMI', 'CLBBB', 'LAO/LAE', 'AMI', 'LAFB/LPFB', 'RAO/RAE', 'ISCI', 'NST_', 'NORM', 'PMI', 'IRBBB', 'RVH', 'IVCD', 'LMI', 'CRBBB', 'STTC', '_AVB', 'ILBBB', 'WPW', 'ISC_', 'SEHYP']
 
 class PretrainExpertInstDiscSystem(pl.LightningModule):
     '''Pretraining with Instance Discrimination
@@ -419,6 +425,10 @@ class TransferViewMakerSystem(pl.LightningModule):
         self.num_features = num_features
         self.train_dataset, self.val_dataset = self.create_datasets()
         self.model = self.create_model()
+        self.f1_metric = AutoThresholdF1(num_classes=23, average=None, compute_on_step=False)
+        self.auroc_metric = AUROC(num_classes=23, average=None, compute_on_step=False)
+        self.f1_metric_avg = AutoThresholdF1(num_classes=23, average="macro", compute_on_step=False)
+        self.auroc_metric_avg = AUROC(num_classes=23, average="macro", compute_on_step=False)
 
     def load_pretrained_model(self):
         base_dir = self.config.pretrain_model.exp_dir
@@ -506,21 +516,27 @@ class TransferViewMakerSystem(pl.LightningModule):
 
     def get_accuracies_for_batch(self, batch, train=True):
         _, inputs, inputs2, label = batch
+        onehot_encoded = F.one_hot(label, num_classes=23)
         logits = self.forward(inputs, train=train)
         preds = torch.argmax(F.log_softmax(logits, dim=1), dim=1)
+        probs = F.softmax(logits, dim=1)
+        
+        self.auroc_metric(probs, label.long())
+        self.f1_metric(probs, onehot_encoded, label.long())
+        self.auroc_metric_avg(probs, label.long())
+        self.f1_metric_avg(probs, onehot_encoded, label.long())
+        
         preds = preds.long().cpu()
         labels = label.long().cpu()
-        probs = F.softmax(logits, dim=1).cpu()
-        f1_score = sklearn.metrics.f1_score(labels, preds, average='macro')
-        auc = sklearn.metrics.roc_auc_score(labels, probs, multi_class='ovo', labels = range(23))
+        
         num_correct = torch.sum(preds == labels).item()
         num_total = inputs.size(0)
-        return num_correct, num_total, f1_score, auc
+        return num_correct, num_total
 
     def training_step(self, batch, batch_idx):
         loss = self.get_losses_for_batch(batch, train=True)
         with torch.no_grad():
-            num_correct, num_total, _, _ = self.get_accuracies_for_batch(
+            num_correct, num_total = self.get_accuracies_for_batch(
                 batch, train=True)
             metrics = {
                 'train_loss': loss,
@@ -532,18 +548,45 @@ class TransferViewMakerSystem(pl.LightningModule):
 
     def validation_step(self, batch, batch_idx):
         loss = self.get_losses_for_batch(batch, train=False)
-        num_correct, num_total, f1_score, auc = self.get_accuracies_for_batch(
+        num_correct, num_total = self.get_accuracies_for_batch(
             batch, train=False)
         return OrderedDict({
             'val_loss': loss,
             'val_num_correct': num_correct,
             'val_num_total': num_total,
-            'val_acc': num_correct / float(num_total),
-            'f1_score': f1_score,
-            'auc': auc
+            'val_acc': num_correct / float(num_total)
         })
 
     def validation_epoch_end(self, outputs):
+        targets = torch.flatten(torch.cat(self.f1_metric.labels, dim=0))
+        print("targets shape", targets.shape)
+        flat_labels = targets.tolist()
+        print("len of flat labels", len(flat_labels))
+#             import itertools
+#             flat_labels = list(itertools.chain(*target_list))
+#             flat_labels = [item for sublist in target_list for item in sublist]
+#             print(flat_labels)
+#             print(len(flat_labels))
+#             print(groupby(flat_labels))
+#             print(flat_labels[10])
+#             counter=collections.Counter(flat_labels)
+#         print("flat labels", flat_labels)
+        print("num distinct", len(set(flat_labels)))
+#             frequency = [len(list(group)) for key, group in groupby(flat_labels)]
+#             print("freq sum", sum(frequency))
+#             print("len freq", len(frequency))
+#             print("groupby", [key for key, group in groupby(flat_labels)], "\n")
+#             data = [[label, val] for (label, val) in zip(DIAGNOSTIC_SUBCLASS, frequency)] 
+#             print(data)
+#             print(sum(row[1] for row in data))
+        total_els = len(flat_labels)
+        if self.current_epoch == 0:
+            counter=collections.Counter(flat_labels)
+            print(dict(counter))
+            data = [[DIAGNOSTIC_SUBCLASS[label], val/total_els] for _, (label, val) in enumerate(dict(counter).items())] 
+            print(data)
+            table = wandb.Table(data=data, columns = ["diagnostic subclass", "frequency"]) 
+            wandb.log({"my_bar_chart_id" : wandb.plot.bar(table, "label", "value", title="Custom Bar Chart")})
         metrics = {}
         for key in outputs[0].keys():
             metrics[key] = torch.tensor([elem[key]
@@ -552,8 +595,37 @@ class TransferViewMakerSystem(pl.LightningModule):
         num_total = sum([out['val_num_total'] for out in outputs])
         val_acc = num_correct / float(num_total)
         metrics['val_acc'] = val_acc
-        progress_bar = {'acc': val_acc}
+        f1_scores = self.f1_metric.compute()
+        f1_dict = {DIAGNOSTIC_SUBCLASS[i] + "_f1": f1_scores[i] for i in range(len(f1_scores))}
+        f1_dict["f1-post-averaging"] = f1_scores.mean()
+        auroc = self.auroc_metric.compute()
+        auroc_dict = {DIAGNOSTIC_SUBCLASS[i] + "_auroc": auroc[i] for i in range(len(auroc))}
+        auroc_dict["auroc-post-averaging"] = auroc.mean()
         
+        metrics['f1_score'] = self.f1_metric_avg.compute()
+        metrics['auroc'] = self.auroc_metric_avg.compute()
+        
+        assert (torch.equal(torch.cat(self.f1_metric.preds, dim=0), torch.cat(self.f1_metric_avg.preds, dim=0))), "f1 preds not same!"
+        assert (torch.equal(torch.cat(self.f1_metric.target, dim=0), torch.cat(self.f1_metric_avg.target, dim=0))), "f1 targets not same!"
+        assert (torch.equal(self.f1_metric.output, self.f1_metric_avg.output)), "f1 outputs not same!"
+        if f1_dict["f1-post-averaging"] != metrics['f1_score']:
+            print(self.f1_metric.output)
+            print(self.f1_metric_avg.output)
+            print(f1_dict["f1-post-averaging"])
+            print(metrics['f1_score'])
+            assert (f1_dict["f1-post-averaging"] == metrics['f1_score']), "f1 averaged scores not same"
+        print("f1-post-averaging", f1_dict["f1-post-averaging"])
+        print("f1 macro", metrics['f1_score'])
+#         wandb.log(f1_dict)
+#         wandb.log(auroc_dict)
+        metrics.update(f1_dict)
+        metrics.update(auroc_dict)
+        progress_bar = {'acc': val_acc}
+        self.f1_metric.reset()
+        self.auroc_metric.reset()
+        self.f1_metric_avg.reset()
+        self.auroc_metric_avg.reset()
+#         wandb.log(metrics)
         return {'val_loss': metrics['val_loss'], 'log': metrics, 'val_acc': val_acc, 'progress_bar': progress_bar}
 
     def train_dataloader(self):

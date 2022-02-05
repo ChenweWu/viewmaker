@@ -164,17 +164,19 @@ class BasePTB_XL(data.Dataset):
 
         # Split data into train and test
         test_fold = 10
+        val_fold = 9
+        folds = self.get_subject_ids(self.mode)
         # Train
-        X_train = X[np.where(Y.strat_fold != test_fold)]
+        X_data = X[np.in1d(Y.strat_fold, folds)]
         #         print("X train shape:", X_train.shape)
-        y_train = Y[(Y.strat_fold != test_fold)].diagnostic_subclass
+        y_data = Y[(np.in1d(Y.strat_fold, folds))].diagnostic_subclass
         #         print("y data", y_train)
-        y_conf= Y[(Y.strat_fold != test_fold)].diagnostic_confidence.to_numpy()
-        y_train = y_train.to_numpy()
+        y_conf= Y[(np.in1d(Y.strat_fold, folds))].diagnostic_confidence.to_numpy()
+        y_data = y_data.to_numpy()
         #         print("y train test", y_train[0][0])
         #         print("y train shape:", y_train.shape)
         #         print()
-        subject_data=[X_train,y_train,y_conf]
+        subject_data=[X_data,y_data,y_conf]
         return subject_data
     
     def __getitem__(self, index):
